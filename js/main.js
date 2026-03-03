@@ -26,7 +26,7 @@ function animate() {
   sceneSystem.sun.position.set(Math.cos(time) * 6.0, 1.5 + Math.sin(time * 0.7) * 1.2, Math.sin(time) * 4.5);
   sceneSystem.updateEnvironmentLighting(time);
 
-  earthSystem.updateMaterial();
+  earthSystem.updateMaterial(time);
   earthSystem.clouds.rotation.y += 0.0007;
   earthSystem.clouds.rotation.x += 0.00006;
 

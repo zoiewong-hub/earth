@@ -160,6 +160,80 @@ function makeAtmosphere(THREE, sunRef) {
   return material;
 }
 
+function makeMagmaMaterial(THREE) {
+  const material = new THREE.ShaderMaterial({
+    transparent: true,
+    uniforms: {
+      time: { value: 0 },
+      glow: { value: 1 },
+    },
+    vertexShader: `
+      varying vec3 vPos;
+      varying vec3 vNormal;
+      void main() {
+        vPos = position;
+        vNormal = normal;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float time;
+      uniform float glow;
+      varying vec3 vPos;
+      varying vec3 vNormal;
+      float flow(vec3 p) {
+        float n = sin((p.x + time * 0.9) * 18.0) * 0.35;
+        n += sin((p.y - time * 0.6) * 23.0) * 0.35;
+        n += sin((p.z + time * 1.2) * 21.0) * 0.3;
+        return n;
+      }
+      void main() {
+        float n = flow(normalize(vPos));
+        float cracks = smoothstep(0.15, 0.65, n + 0.55);
+        vec3 lava = mix(vec3(0.28,0.03,0.01), vec3(1.0,0.35,0.05), cracks);
+        float rim = pow(1.0 - max(dot(normalize(vNormal), vec3(0.0,0.0,1.0)), 0.0), 1.8);
+        vec3 col = lava + vec3(1.0,0.6,0.2) * rim * 0.35 * glow;
+        gl_FragColor = vec4(col, 0.92);
+      }
+    `,
+  });
+
+  return material;
+}
+
+function createOrbitalBelt(THREE) {
+  const geometry = new THREE.BufferGeometry();
+  const points = [];
+  const colors = [];
+  for (let i = 0; i < 1400; i += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 1.95 + (Math.random() - 0.5) * 0.35;
+    const y = (Math.random() - 0.5) * 0.07;
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+    points.push(x, y, z);
+
+    const c = new THREE.Color().setHSL(0.58 + Math.random() * 0.06, 0.45, 0.45 + Math.random() * 0.25);
+    colors.push(c.r, c.g, c.b);
+  }
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+  const material = new THREE.PointsMaterial({
+    size: 0.013,
+    transparent: true,
+    opacity: 0.48,
+    depthWrite: false,
+    vertexColors: true,
+    blending: THREE.AdditiveBlending,
+  });
+
+  const belt = new THREE.Points(geometry, material);
+  belt.rotation.x = 0.36;
+  belt.rotation.z = -0.2;
+  return belt;
+}
+
 function applyNightBlend(material, nightTexture, specTexture, sunRef, THREE) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.nightMap = { value: nightTexture };
@@ -187,7 +261,8 @@ function applyNightBlend(material, nightTexture, specTexture, sunRef, THREE) {
       float oceanSpec = smoothstep(0.1, 0.95, specMaskVal);
       vec3 viewDir = normalize(vViewPosition);
       vec3 halfVec = normalize(nSun + viewDir);
-      float gloss = pow(max(dot(normalize(vNormal), halfVec), 0.0), 70.0) * oceanSpec * 0.24;
+      float specBase = max(dot(normalize(vNormal), halfVec), 0.0);
+      float gloss = smoothstep(0.2, 1.0, specBase) * pow(specBase, 36.0) * oceanSpec * 0.2;
       totalEmissiveRadiance += vec3(0.55, 0.72, 0.95) * gloss;`
     );
 
@@ -225,25 +300,35 @@ export async function createEarthSystem(THREE, scene, sun) {
   });
   applyNightBlend(earthMat, nightMap, specularMap, sun, THREE);
 
-  const earth = new THREE.Mesh(new THREE.SphereGeometry(1.34, 128, 128), earthMat);
+  const earthGeometry = new THREE.SphereGeometry(1.34, 128, 128);
+  const earth = new THREE.Mesh(earthGeometry, earthMat);
 
   const clouds = new THREE.Mesh(
     new THREE.SphereGeometry(1.3534, 128, 128),
     new THREE.MeshStandardMaterial({ map: cloudMap, transparent: true, opacity: 0.3, depthWrite: false, roughness: 1, metalness: 0 })
   );
 
-  const atmosphereMaterial = makeAtmosphere(THREE, sun);
-  const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(1.378, 128, 128), atmosphereMaterial);
-
+  const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(1.378, 128, 128), makeAtmosphere(THREE, sun));
   const outerAtmosphere = new THREE.Mesh(
     new THREE.SphereGeometry(1.405, 96, 96),
     new THREE.MeshBasicMaterial({ color: 0x5ea8ff, transparent: true, opacity: 0.045, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.BackSide })
   );
 
-  const core = new THREE.Mesh(
-    new THREE.SphereGeometry(0.48, 64, 64),
-    new THREE.MeshStandardMaterial({ color: 0xff7d3a, emissive: 0xff5f2b, emissiveIntensity: 1.3, transparent: true, opacity: 0, roughness: 0.25, metalness: 0.35 })
-  );
+  const orbitalBelt = createOrbitalBelt(THREE);
+
+  const clipLeft = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+  const clipRight = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
+  const leftShell = new THREE.Mesh(earthGeometry.clone(), earthMat.clone());
+  const rightShell = new THREE.Mesh(earthGeometry.clone(), earthMat.clone());
+  leftShell.material.clippingPlanes = [clipLeft];
+  rightShell.material.clippingPlanes = [clipRight];
+  leftShell.material.clipShadows = true;
+  rightShell.material.clipShadows = true;
+  leftShell.visible = false;
+  rightShell.visible = false;
+
+  const magmaCore = new THREE.Mesh(new THREE.SphereGeometry(1.05, 96, 96), makeMagmaMaterial(THREE));
+  magmaCore.visible = false;
 
   const ringGeo = new THREE.BufferGeometry();
   const ringPos = [];
@@ -258,7 +343,7 @@ export async function createEarthSystem(THREE, scene, sun) {
     new THREE.PointsMaterial({ color: 0x8ec8ff, size: 0.03, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })
   );
 
-  group.add(earth, clouds, atmosphere, outerAtmosphere, core, pulseRing);
+  group.add(earth, clouds, atmosphere, outerAtmosphere, orbitalBelt, leftShell, rightShell, magmaCore, pulseRing);
 
   function intro(camera, ambient, hemi) {
     const tl = gsap.timeline({ defaults: { ease: 'power2.inOut' } });
@@ -292,13 +377,38 @@ export async function createEarthSystem(THREE, scene, sun) {
   }
 
   function crackEasterEgg() {
-    gsap.timeline()
-      .to(core.material, { opacity: 0.92, duration: 0.25, ease: 'power2.out' }, 0)
-      .to(earth.scale, { x: 1.1, y: 0.9, z: 1.1, duration: 0.3, ease: 'power2.out' }, 0)
-      .to(clouds.material, { opacity: 0.12, duration: 0.24, ease: 'power1.out' }, 0)
-      .to(earth.scale, { x: 1, y: 1, z: 1, duration: 0.66, ease: 'power2.inOut' }, 0.34)
-      .to(core.material, { opacity: 0, duration: 0.72, ease: 'power2.in' }, 0.48)
-      .to(clouds.material, { opacity: 0.3, duration: 0.45, ease: 'power2.inOut' }, 0.55);
+    if (leftShell.visible || rightShell.visible) return;
+
+    earth.visible = false;
+    clouds.visible = false;
+    leftShell.visible = true;
+    rightShell.visible = true;
+    magmaCore.visible = true;
+
+    leftShell.position.set(0, 0, 0);
+    rightShell.position.set(0, 0, 0);
+    leftShell.rotation.set(0, 0, 0);
+    rightShell.rotation.set(0, 0, 0);
+
+    gsap.timeline({ defaults: { ease: 'power2.inOut' } })
+      .to(magmaCore.material.uniforms.glow, { value: 1.5, duration: 0.35 }, 0)
+      .to(leftShell.position, { x: -0.24, duration: 0.45, ease: 'power2.out' }, 0)
+      .to(rightShell.position, { x: 0.24, duration: 0.45, ease: 'power2.out' }, 0)
+      .to(leftShell.rotation, { z: -0.11, y: -0.06, duration: 0.5 }, 0)
+      .to(rightShell.rotation, { z: 0.11, y: 0.06, duration: 0.5 }, 0)
+      .to({}, { duration: 0.9 }, 0.5)
+      .to(leftShell.position, { x: 0, duration: 0.8, ease: 'power3.inOut' }, 1.1)
+      .to(rightShell.position, { x: 0, duration: 0.8, ease: 'power3.inOut' }, 1.1)
+      .to(leftShell.rotation, { z: 0, y: 0, duration: 0.8 }, 1.1)
+      .to(rightShell.rotation, { z: 0, y: 0, duration: 0.8 }, 1.1)
+      .to(magmaCore.material.uniforms.glow, { value: 1, duration: 0.7 }, 1.35)
+      .add(() => {
+        earth.visible = true;
+        clouds.visible = true;
+        leftShell.visible = false;
+        rightShell.visible = false;
+        magmaCore.visible = false;
+      });
   }
 
   return {
@@ -307,9 +417,14 @@ export async function createEarthSystem(THREE, scene, sun) {
     clouds,
     atmosphere,
     pulseRing,
-    updateMaterial() {
+    updateMaterial(time = 0) {
       earth.material.userData.updateShader?.();
+      leftShell.material.userData.updateShader?.();
+      rightShell.material.userData.updateShader?.();
       atmosphere.material.userData.updateSun?.();
+      magmaCore.material.uniforms.time.value = time;
+      orbitalBelt.rotation.y += 0.0009;
+      orbitalBelt.rotation.z += Math.sin(time * 0.5) * 0.00008;
     },
     intro,
     clickBounce,

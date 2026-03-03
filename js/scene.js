@@ -4,6 +4,24 @@ import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.162.0/examples/
 import { UnrealBloomPass } from 'https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/postprocessing/UnrealBloomPass.js/+esm';
 import { BokehPass } from 'https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/postprocessing/BokehPass.js/+esm';
 
+
+function createLightSpriteTexture(THREERef, inner, outer) {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const g = ctx.createRadialGradient(size / 2, size / 2, size * 0.08, size / 2, size / 2, size * 0.5);
+  g.addColorStop(0, inner);
+  g.addColorStop(0.4, outer);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  const texture = new THREERef.CanvasTexture(canvas);
+  texture.colorSpace = THREERef.SRGBColorSpace;
+  return texture;
+}
+
 function createStars(THREERef) {
   const geometry = new THREERef.BufferGeometry();
   const vertices = [];
@@ -51,6 +69,7 @@ export function createSceneSystem(container) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
+  renderer.localClippingEnabled = true;
   container.appendChild(renderer.domElement);
 
   const ambient = new THREE.AmbientLight(0xb8d8ff, 0.38);
@@ -64,7 +83,29 @@ export function createSceneSystem(container) {
   const fill = new THREE.PointLight(0x7dd1ff, 0.45, 12, 2);
   fill.position.set(0, 0.5, 3.2);
 
-  scene.add(ambient, hemi, sun, rim, fill);
+  const sunCore = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: createLightSpriteTexture(THREE, 'rgba(255,255,255,1)', 'rgba(173,214,255,0.65)'),
+      color: 0xffffff,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+  );
+  sunCore.scale.setScalar(0.72);
+
+  const sunHalo = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: createLightSpriteTexture(THREE, 'rgba(169,215,255,0.55)', 'rgba(88,154,255,0.24)'),
+      color: 0x9bc6ff,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+  );
+  sunHalo.scale.setScalar(1.65);
+
+  scene.add(ambient, hemi, sun, rim, fill, sunCore, sunHalo);
 
   const stars = createStars(THREE);
   scene.add(stars);
@@ -104,6 +145,13 @@ export function createSceneSystem(container) {
     hemi.color.setHSL(0.58 + beat * 0.03, 0.58, 0.68 + beat * 0.08);
     hemi.groundColor.setHSL(0.62, 0.24, 0.13 + (1 - beat) * 0.08);
     fill.color.setHSL(0.55 + micro * 0.05, 0.7, 0.66 + micro * 0.1);
+
+    sunCore.position.copy(sun.position);
+    sunHalo.position.copy(sun.position);
+    sunCore.material.opacity = 0.62 + micro * 0.26;
+    sunHalo.material.opacity = 0.28 + beat * 0.24;
+    const haloScale = 1.5 + micro * 0.28;
+    sunHalo.scale.setScalar(haloScale);
   }
 
   function onResize() {
