@@ -18,6 +18,8 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
     clickSeries: [],
     parallaxX: 0,
     parallaxY: 0,
+    activePointers: new Map(),
+    pinchDistance: 0,
   };
 
   function markActive() {
@@ -41,8 +43,40 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
     return hit[0] || null;
   }
 
+  function applyZoom(targetZ) {
+    const target = Math.max(2.7, Math.min(8.5, targetZ));
+    gsap.to(camera.position, { z: target, duration: 0.38, ease: 'power2.out' });
+  }
+
+  function updatePinchZoom() {
+    if (state.activePointers.size < 2) return;
+    const points = [...state.activePointers.values()];
+    const dx = points[0].x - points[1].x;
+    const dy = points[0].y - points[1].y;
+    const distance = Math.hypot(dx, dy);
+
+    if (!state.pinchDistance) {
+      state.pinchDistance = distance;
+      return;
+    }
+
+    const delta = distance - state.pinchDistance;
+    state.pinchDistance = distance;
+    const zoomDelta = -delta * 0.006;
+    applyZoom(camera.position.z + zoomDelta);
+  }
+
   function onPointerDown(event) {
     markActive();
+    state.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (state.activePointers.size >= 2) {
+      state.dragging = false;
+      clearTimeout(state.longPressTimer);
+      state.pinchDistance = 0;
+      return;
+    }
+
     state.dragging = true;
     state.lastX = event.clientX;
     state.lastY = event.clientY;
@@ -57,6 +91,10 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
   }
 
   function onPointerMove(event) {
+    if (state.activePointers.has(event.pointerId)) {
+      state.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+
     const hit = pickEarth(event);
 
     if (hit && !state.hover) {
@@ -67,6 +105,12 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
       state.hover = false;
       gsap.to({ value: 0.68 }, { value: 0.42, duration: 0.4, ease: 'sine.inOut', onUpdate() { setBloomStrength(this.targets()[0].value); } });
       gsap.to({}, { duration: 0.6, onStart: () => setFocus(3.8) });
+    }
+
+    if (state.activePointers.size >= 2) {
+      markActive();
+      updatePinchZoom();
+      return;
     }
 
     if (!state.dragging) return;
@@ -85,8 +129,12 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
     earthSystem.group.rotation.x = Math.max(-0.8, Math.min(0.8, earthSystem.group.rotation.x));
   }
 
-  function onPointerUp() {
+  function onPointerUp(event) {
     clearTimeout(state.longPressTimer);
+    state.activePointers.delete(event.pointerId);
+    if (state.activePointers.size < 2) {
+      state.pinchDistance = 0;
+    }
     state.dragging = false;
   }
 
@@ -129,12 +177,13 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
   function onWheel(event) {
     markActive();
     const delta = Math.sign(event.deltaY) * 0.35;
-    const target = Math.max(2.7, Math.min(8.5, camera.position.z + delta));
-    gsap.to(camera.position, { z: target, duration: 0.58, ease: 'power2.inOut' });
+    applyZoom(camera.position.z + delta);
   }
 
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
   renderer.domElement.addEventListener('pointermove', onPointerMove);
+  renderer.domElement.addEventListener('pointerup', onPointerUp);
+  renderer.domElement.addEventListener('pointercancel', onPointerUp);
   window.addEventListener('pointerup', onPointerUp);
   renderer.domElement.addEventListener('click', onClick);
   renderer.domElement.addEventListener('dblclick', onDblClick);
@@ -144,7 +193,7 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
 
   return {
     update() {
-      if (!state.dragging) {
+      if (!state.dragging && state.activePointers.size < 2) {
         earthSystem.group.rotation.y += state.velocityX;
         earthSystem.group.rotation.x += state.velocityY;
         state.velocityX *= 0.965;
