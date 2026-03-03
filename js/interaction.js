@@ -107,6 +107,7 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
     if (!hit) return;
 
     earthSystem.clickBounce();
+    earthSystem.triggerOrbitalBelt?.();
     showLabel(hit.point, earthSystem.labelText());
 
     const now = performance.now();

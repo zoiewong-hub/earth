@@ -205,24 +205,25 @@ function createOrbitalBelt(THREE) {
   const geometry = new THREE.BufferGeometry();
   const points = [];
   const colors = [];
-  for (let i = 0; i < 1400; i += 1) {
+  for (let i = 0; i < 3200; i += 1) {
     const angle = Math.random() * Math.PI * 2;
-    const radius = 1.95 + (Math.random() - 0.5) * 0.35;
-    const y = (Math.random() - 0.5) * 0.07;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
-    points.push(x, y, z);
+    const radialSpread = (Math.random() - 0.5) * 0.42;
+    const radius = 1.94 + radialSpread;
+    const y = (Math.random() - 0.5) * 0.09;
+    points.push(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
 
-    const c = new THREE.Color().setHSL(0.58 + Math.random() * 0.06, 0.45, 0.45 + Math.random() * 0.25);
+    const brightness = 0.42 + Math.random() * 0.42;
+    const c = new THREE.Color().setHSL(0.58 + Math.random() * 0.08, 0.6, brightness);
     colors.push(c.r, c.g, c.b);
   }
+
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
 
   const material = new THREE.PointsMaterial({
-    size: 0.013,
+    size: 0.015,
     transparent: true,
-    opacity: 0.48,
+    opacity: 0.06,
     depthWrite: false,
     vertexColors: true,
     blending: THREE.AdditiveBlending,
@@ -231,6 +232,7 @@ function createOrbitalBelt(THREE) {
   const belt = new THREE.Points(geometry, material);
   belt.rotation.x = 0.36;
   belt.rotation.z = -0.2;
+  belt.scale.setScalar(0.92);
   return belt;
 }
 
@@ -376,6 +378,15 @@ export async function createEarthSystem(THREE, scene, sun) {
     gsap.to(pulseRing.material, { opacity: active ? 0.75 : 0, duration: 0.9, ease: 'sine.inOut' });
   }
 
+  function triggerOrbitalBelt() {
+    gsap.killTweensOf(orbitalBelt.material);
+    gsap.killTweensOf(orbitalBelt.scale);
+    gsap.to(orbitalBelt.material, { opacity: 0.82, duration: 0.45, ease: 'power2.out' });
+    gsap.to(orbitalBelt.scale, { x: 1.03, y: 1.03, z: 1.03, duration: 0.7, ease: 'sine.out' });
+    gsap.to(orbitalBelt.material, { opacity: 0.16, duration: 1.8, ease: 'sine.inOut', delay: 0.5 });
+    gsap.to(orbitalBelt.scale, { x: 0.95, y: 0.95, z: 0.95, duration: 1.8, ease: 'sine.inOut', delay: 0.5 });
+  }
+
   function crackEasterEgg() {
     if (leftShell.visible || rightShell.visible) return;
 
@@ -423,13 +434,15 @@ export async function createEarthSystem(THREE, scene, sun) {
       rightShell.material.userData.updateShader?.();
       atmosphere.material.userData.updateSun?.();
       magmaCore.material.uniforms.time.value = time;
-      orbitalBelt.rotation.y += 0.0009;
+      orbitalBelt.rotation.y += 0.00115;
       orbitalBelt.rotation.z += Math.sin(time * 0.5) * 0.00008;
+      orbitalBelt.material.opacity += (0.16 - orbitalBelt.material.opacity) * 0.015;
     },
     intro,
     clickBounce,
     togglePulse,
     crackEasterEgg,
+    triggerOrbitalBelt,
     labelText() {
       return LABELS[Math.floor(Math.random() * LABELS.length)];
     },
