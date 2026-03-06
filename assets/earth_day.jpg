@@ -1,0 +1,2 @@
+Placeholder file to preserve required structure.
+The app currently generates textures procedurally in js/earth.js to avoid binary assets in git diff.
