@@ -202,52 +202,67 @@ function makeMagmaMaterial(THREE) {
 }
 
 function createOrbitalBelt(THREE) {
-  const geometry = new THREE.BufferGeometry();
-  const points = [];
-  const colors = [];
-  for (let i = 0; i < 3200; i += 1) {
+  const coreGeometry = new THREE.BufferGeometry();
+  const corePoints = [];
+  const coreColors = [];
+  for (let i = 0; i < 4200; i += 1) {
     const angle = Math.random() * Math.PI * 2;
-    const radialSpread = (Math.random() - 0.5) * 0.42;
-    const radius = 1.94 + radialSpread;
-    const y = (Math.random() - 0.5) * 0.09;
-    points.push(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+    const radialSpread = (Math.random() - 0.5) * 0.36;
+    const radius = 1.95 + radialSpread;
+    const y = (Math.random() - 0.5) * 0.08;
+    corePoints.push(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
 
-    const brightness = 0.42 + Math.random() * 0.42;
-    const c = new THREE.Color().setHSL(0.58 + Math.random() * 0.08, 0.6, brightness);
-    colors.push(c.r, c.g, c.b);
+    const brightness = 0.46 + Math.random() * 0.42;
+    const c = new THREE.Color().setHSL(0.57 + Math.random() * 0.08, 0.64, brightness);
+    coreColors.push(c.r, c.g, c.b);
   }
+  coreGeometry.setAttribute('position', new THREE.Float32BufferAttribute(corePoints, 3));
+  coreGeometry.setAttribute('color', new THREE.Float32BufferAttribute(coreColors, 3));
 
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-  const material = new THREE.PointsMaterial({
-    size: 0.018,
+  const coreMat = new THREE.PointsMaterial({
+    size: 0.017,
     transparent: true,
-    opacity: 0.045,
+    opacity: 0.04,
     depthWrite: false,
     vertexColors: true,
     blending: THREE.AdditiveBlending,
   });
 
-  const belt = new THREE.Points(geometry, material);
+  const hazeGeometry = new THREE.BufferGeometry();
+  const hazePoints = [];
+  const hazeColors = [];
+  for (let i = 0; i < 2400; i += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const radialSpread = (Math.random() - 0.5) * 0.64;
+    const radius = 1.98 + radialSpread;
+    const y = (Math.random() - 0.5) * 0.15;
+    hazePoints.push(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+
+    const c = new THREE.Color().setHSL(0.55 + Math.random() * 0.1, 0.52, 0.4 + Math.random() * 0.25);
+    hazeColors.push(c.r, c.g, c.b);
+  }
+  hazeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(hazePoints, 3));
+  hazeGeometry.setAttribute('color', new THREE.Float32BufferAttribute(hazeColors, 3));
+
+  const hazeMat = new THREE.PointsMaterial({
+    size: 0.028,
+    transparent: true,
+    opacity: 0.018,
+    depthWrite: false,
+    vertexColors: true,
+    blending: THREE.AdditiveBlending,
+  });
+
+  const belt = new THREE.Points(coreGeometry, coreMat);
+  const haze = new THREE.Points(hazeGeometry, hazeMat);
+
   belt.rotation.x = 0.36;
   belt.rotation.z = -0.2;
+  haze.rotation.copy(belt.rotation);
   belt.scale.setScalar(0.9);
+  haze.scale.setScalar(0.95);
 
-  const halo = new THREE.Mesh(
-    new THREE.TorusGeometry(1.96, 0.2, 32, 220),
-    new THREE.MeshBasicMaterial({
-      color: 0x8fc3ff,
-      transparent: true,
-      opacity: 0.02,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    })
-  );
-  halo.rotation.copy(belt.rotation);
-  halo.scale.setScalar(0.9);
-
-  return { belt, halo };
+  return { belt, haze };
 }
 
 function applyNightBlend(material, nightTexture, specTexture, sunRef, THREE) {
@@ -332,7 +347,7 @@ export async function createEarthSystem(THREE, scene, sun) {
 
   const orbitalFx = createOrbitalBelt(THREE);
   const orbitalBelt = orbitalFx.belt;
-  const orbitalHalo = orbitalFx.halo;
+  const orbitalHaze = orbitalFx.haze;
 
   const clipLeft = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
   const clipRight = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
@@ -361,24 +376,21 @@ export async function createEarthSystem(THREE, scene, sun) {
     new THREE.PointsMaterial({ color: 0x8ec8ff, size: 0.03, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })
   );
 
-  group.add(earth, clouds, atmosphere, outerAtmosphere, orbitalBelt, orbitalHalo, leftShell, rightShell, magmaCore, pulseRing);
+  group.add(earth, clouds, atmosphere, outerAtmosphere, orbitalBelt, orbitalHaze, leftShell, rightShell, magmaCore, pulseRing);
 
   function intro(camera, ambient, hemi) {
     const tl = gsap.timeline({ defaults: { ease: 'power2.inOut' } });
-    camera.position.set(0.2, 0.35, 12.8);
-    group.rotation.set(0.3, -1.9, 0.08);
-    group.scale.set(0.8, 0.8, 0.8);
-    ambient.intensity = 0.05;
-    hemi.intensity = 0.1;
+    camera.position.set(0, 0.2, 8.2);
+    group.rotation.set(0.06, -0.85, 0);
+    group.scale.set(0.88, 0.88, 0.88);
+    ambient.intensity = 0.14;
+    hemi.intensity = 0.24;
 
-    tl.to(camera.position, { z: 7.4, duration: 2.2 }, 0)
-      .to(group.scale, { x: 1.0, y: 1.0, z: 1.0, duration: 2.2 }, 0)
-      .to(group.rotation, { y: -0.4, duration: 2.6 }, 0)
-      .to(camera.position, { x: 2.9, z: 6.4, duration: 2.1 }, 0.8)
-      .to(camera.position, { x: 0, y: 0.2, z: 5.7, duration: 2.0 }, 2.6)
-      .to(ambient, { intensity: 0.4, duration: 2.8 }, 0.1)
-      .to(hemi, { intensity: 0.55, duration: 2.8 }, 0.1)
-      .to(group.rotation, { x: 0.06, y: -0.33, z: 0, duration: 1.8 }, 2.6);
+    tl.to(camera.position, { x: 0, y: 0.2, z: 5.7, duration: 2.4 }, 0)
+      .to(group.scale, { x: 1.0, y: 1.0, z: 1.0, duration: 2.4 }, 0)
+      .to(group.rotation, { x: 0.06, y: -0.33, z: 0, duration: 2.4 }, 0)
+      .to(ambient, { intensity: 0.38, duration: 2.2 }, 0.15)
+      .to(hemi, { intensity: 0.52, duration: 2.2 }, 0.15);
 
     return tl;
   }
@@ -397,18 +409,18 @@ export async function createEarthSystem(THREE, scene, sun) {
   function triggerOrbitalBelt() {
     gsap.killTweensOf(orbitalBelt.material);
     gsap.killTweensOf(orbitalBelt.scale);
-    gsap.killTweensOf(orbitalHalo.material);
-    gsap.killTweensOf(orbitalHalo.scale);
+    gsap.killTweensOf(orbitalHaze.material);
+    gsap.killTweensOf(orbitalHaze.scale);
 
-    gsap.to(orbitalBelt.material, { opacity: 0.9, duration: 0.4, ease: 'power2.out' });
-    gsap.to(orbitalHalo.material, { opacity: 0.16, duration: 0.5, ease: 'power2.out' });
-    gsap.to(orbitalBelt.scale, { x: 1.07, y: 1.07, z: 1.07, duration: 0.7, ease: 'sine.out' });
-    gsap.to(orbitalHalo.scale, { x: 1.04, y: 1.04, z: 1.04, duration: 0.7, ease: 'sine.out' });
+    gsap.to(orbitalBelt.material, { opacity: 0.62, duration: 0.45, ease: 'power2.out' });
+    gsap.to(orbitalHaze.material, { opacity: 0.12, duration: 0.5, ease: 'power2.out' });
+    gsap.to(orbitalBelt.scale, { x: 1.05, y: 1.05, z: 1.05, duration: 0.75, ease: 'sine.out' });
+    gsap.to(orbitalHaze.scale, { x: 1.02, y: 1.02, z: 1.02, duration: 0.75, ease: 'sine.out' });
 
-    gsap.to(orbitalBelt.material, { opacity: 0.18, duration: 2.1, ease: 'sine.inOut', delay: 0.55 });
-    gsap.to(orbitalHalo.material, { opacity: 0.04, duration: 2.1, ease: 'sine.inOut', delay: 0.55 });
-    gsap.to(orbitalBelt.scale, { x: 0.95, y: 0.95, z: 0.95, duration: 2.1, ease: 'sine.inOut', delay: 0.55 });
-    gsap.to(orbitalHalo.scale, { x: 0.93, y: 0.93, z: 0.93, duration: 2.1, ease: 'sine.inOut', delay: 0.55 });
+    gsap.to(orbitalBelt.material, { opacity: 0.14, duration: 2.2, ease: 'sine.inOut', delay: 0.55 });
+    gsap.to(orbitalHaze.material, { opacity: 0.026, duration: 2.2, ease: 'sine.inOut', delay: 0.55 });
+    gsap.to(orbitalBelt.scale, { x: 0.95, y: 0.95, z: 0.95, duration: 2.2, ease: 'sine.inOut', delay: 0.55 });
+    gsap.to(orbitalHaze.scale, { x: 0.94, y: 0.94, z: 0.94, duration: 2.2, ease: 'sine.inOut', delay: 0.55 });
   }
 
   function crackEasterEgg() {
@@ -460,10 +472,10 @@ export async function createEarthSystem(THREE, scene, sun) {
       magmaCore.material.uniforms.time.value = time;
       orbitalBelt.rotation.y += 0.0012;
       orbitalBelt.rotation.z += Math.sin(time * 0.5) * 0.00008;
-      orbitalHalo.rotation.y = orbitalBelt.rotation.y * 0.88;
-      orbitalHalo.rotation.z = orbitalBelt.rotation.z;
-      orbitalBelt.material.opacity += (0.18 - orbitalBelt.material.opacity) * 0.015;
-      orbitalHalo.material.opacity += (0.04 - orbitalHalo.material.opacity) * 0.02;
+      orbitalHaze.rotation.y = orbitalBelt.rotation.y * 0.9;
+      orbitalHaze.rotation.z = orbitalBelt.rotation.z;
+      orbitalBelt.material.opacity += (0.14 - orbitalBelt.material.opacity) * 0.015;
+      orbitalHaze.material.opacity += (0.026 - orbitalHaze.material.opacity) * 0.02;
     },
     intro,
     clickBounce,
