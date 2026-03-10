@@ -124,6 +124,12 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
     state.velocityX = dx * 0.001;
     state.velocityY = dy * 0.0008;
 
+    const dragSpeed = Math.hypot(dx, dy);
+    if (dragSpeed > 38) {
+      state.velocityX *= 1.35;
+      state.velocityY *= 1.2;
+    }
+
     earthSystem.group.rotation.y += state.velocityX;
     earthSystem.group.rotation.x += state.velocityY;
     earthSystem.group.rotation.x = Math.max(-0.8, Math.min(0.8, earthSystem.group.rotation.x));
@@ -156,7 +162,9 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
 
     earthSystem.clickBounce();
     earthSystem.triggerOrbitalBelt?.();
-    showLabel(hit.point, earthSystem.labelText());
+    earthSystem.spawnImpact?.(hit.point);
+    if (event.shiftKey) earthSystem.spawnBeacon?.(hit.point);
+    showLabel(hit.point, event.shiftKey ? "Beacon Placed" : earthSystem.labelText());
 
     const now = performance.now();
     state.clickSeries = state.clickSeries.filter((t) => now - t < 1600);
@@ -172,12 +180,27 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
     if (!pickEarth(event)) return;
     gsap.to(camera.position, { z: 3.2, y: 0.16, duration: 1.05, ease: 'power2.inOut', yoyo: true, repeat: 1 });
     gsap.to({}, { duration: 2.1, onStart: () => setFocus(3.2), onComplete: () => setFocus(3.8) });
+    earthSystem.triggerPlayfulMode?.();
   }
 
   function onWheel(event) {
     markActive();
     const delta = Math.sign(event.deltaY) * 0.35;
     applyZoom(camera.position.z + delta);
+  }
+
+
+  function onKeyDown(event) {
+    if (event.key.toLowerCase() === 'm') {
+      markActive();
+      earthSystem.triggerMeteorShower?.();
+      return;
+    }
+    if (event.key.toLowerCase() === 'r') {
+      markActive();
+      gsap.to(camera.position, { x: 0, y: 0.2, z: 5.7, duration: 0.9, ease: 'power2.inOut' });
+      gsap.to(earthSystem.group.rotation, { x: 0.06, y: -0.33, z: 0, duration: 1.0, ease: 'power2.inOut' });
+    }
   }
 
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
@@ -188,6 +211,7 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
   renderer.domElement.addEventListener('click', onClick);
   renderer.domElement.addEventListener('dblclick', onDblClick);
   renderer.domElement.addEventListener('wheel', onWheel, { passive: true });
+  window.addEventListener('keydown', onKeyDown);
 
   markActive();
 

@@ -376,7 +376,89 @@ export async function createEarthSystem(THREE, scene, sun) {
     new THREE.PointsMaterial({ color: 0x8ec8ff, size: 0.03, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })
   );
 
-  group.add(earth, clouds, atmosphere, outerAtmosphere, orbitalBelt, orbitalHaze, leftShell, rightShell, magmaCore, pulseRing);
+  const interactionEffects = new THREE.Group();
+
+  const meteorSystem = new THREE.Group();
+  const meteors = [];
+
+  function triggerMeteorShower() {
+    for (let i = 0; i < 22; i += 1) {
+      const meteor = new THREE.Mesh(
+        new THREE.SphereGeometry(0.01 + Math.random() * 0.012, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0x9ed4ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })
+      );
+      const start = new THREE.Vector3((Math.random() - 0.5) * 5.2, (Math.random() - 0.5) * 3.2, -2.2 - Math.random() * 1.2);
+      const velocity = new THREE.Vector3(0.02 + Math.random() * 0.045, (Math.random() - 0.5) * 0.012, 0.026 + Math.random() * 0.045);
+      meteor.position.copy(start);
+      meteorSystem.add(meteor);
+      meteors.push({ mesh: meteor, velocity, life: 1.2 + Math.random() * 0.8 });
+    }
+  }
+
+  function spawnBeacon(worldPoint) {
+    const local = group.worldToLocal(worldPoint.clone());
+    const normal = local.clone().normalize();
+
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.028, 0.004, 10, 48),
+      new THREE.MeshBasicMaterial({ color: 0x6fc6ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    ring.position.copy(normal.clone().multiplyScalar(1.365));
+    ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+    ring.scale.setScalar(0.75);
+
+    interactionEffects.add(ring);
+    gsap.timeline({ onComplete: () => {
+      interactionEffects.remove(ring);
+      ring.geometry.dispose();
+      ring.material.dispose();
+    }})
+      .to(ring.scale, { x: 2.4, y: 2.4, z: 2.4, duration: 1.6, ease: 'sine.out' }, 0)
+      .to(ring.material, { opacity: 0, duration: 1.6, ease: 'sine.out' }, 0)
+      .to(ring.rotation, { y: ring.rotation.y + Math.PI * 1.7, duration: 1.6, ease: 'none' }, 0);
+  }
+
+  function spawnImpact(worldPoint) {
+    const local = group.worldToLocal(worldPoint.clone());
+    const normal = local.clone().normalize();
+
+    const ripple = new THREE.Mesh(
+      new THREE.RingGeometry(0.018, 0.048, 40),
+      new THREE.MeshBasicMaterial({ color: 0x7ec4ff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    ripple.position.copy(normal.clone().multiplyScalar(1.37));
+    ripple.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+    ripple.scale.setScalar(0.45);
+
+    const spark = new THREE.Mesh(
+      new THREE.SphereGeometry(0.012, 14, 14),
+      new THREE.MeshBasicMaterial({ color: 0xcde9ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    spark.position.copy(normal.clone().multiplyScalar(1.355));
+
+    interactionEffects.add(ripple, spark);
+
+    gsap.timeline({ onComplete: () => {
+      interactionEffects.remove(ripple, spark);
+      ripple.geometry.dispose();
+      ripple.material.dispose();
+      spark.geometry.dispose();
+      spark.material.dispose();
+    }})
+      .to(ripple.scale, { x: 5.4, y: 5.4, z: 5.4, duration: 0.85, ease: 'power2.out' }, 0)
+      .to(ripple.material, { opacity: 0, duration: 0.85, ease: 'sine.out' }, 0)
+      .to(spark.scale, { x: 2.6, y: 2.6, z: 2.6, duration: 0.5, ease: 'sine.out' }, 0)
+      .to(spark.material, { opacity: 0, duration: 0.6, ease: 'sine.in', delay: 0.15 }, 0);
+  }
+
+  function triggerPlayfulMode() {
+    gsap.to(group.rotation, { y: group.rotation.y + 0.55, duration: 0.9, ease: 'power2.out' });
+    gsap.to(earth.material, { emissiveIntensity: 0.52, duration: 0.6, ease: 'sine.out', yoyo: true, repeat: 1 });
+    gsap.to(atmosphere.material.uniforms.intensity, { value: 1.32, duration: 0.8, ease: 'sine.out', yoyo: true, repeat: 1 });
+    triggerOrbitalBelt();
+  }
+
+  group.add(earth, clouds, atmosphere, outerAtmosphere, orbitalBelt, orbitalHaze, leftShell, rightShell, magmaCore, pulseRing, interactionEffects, meteorSystem);
 
   function intro(camera, ambient, hemi) {
     const tl = gsap.timeline({ defaults: { ease: 'power2.inOut' } });
@@ -476,12 +558,29 @@ export async function createEarthSystem(THREE, scene, sun) {
       orbitalHaze.rotation.z = orbitalBelt.rotation.z;
       orbitalBelt.material.opacity += (0.14 - orbitalBelt.material.opacity) * 0.015;
       orbitalHaze.material.opacity += (0.026 - orbitalHaze.material.opacity) * 0.02;
+
+      for (let i = meteors.length - 1; i >= 0; i -= 1) {
+        const m = meteors[i];
+        m.mesh.position.add(m.velocity);
+        m.life -= 0.016;
+        m.mesh.material.opacity = Math.max(0, m.life * 0.7);
+        if (m.life <= 0) {
+          meteorSystem.remove(m.mesh);
+          m.mesh.geometry.dispose();
+          m.mesh.material.dispose();
+          meteors.splice(i, 1);
+        }
+      }
     },
     intro,
     clickBounce,
     togglePulse,
     crackEasterEgg,
     triggerOrbitalBelt,
+    spawnImpact,
+    spawnBeacon,
+    triggerPlayfulMode,
+    triggerMeteorShower,
     labelText() {
       return LABELS[Math.floor(Math.random() * LABELS.length)];
     },
