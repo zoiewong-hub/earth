@@ -2,6 +2,34 @@ import { gsap } from 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm';
 
 const LABELS = ['Pacific Rim', 'Atlantic Glow', 'Aurora Band', 'Equatorial Stream', 'Polar Crown'];
 
+const CITY_HOTSPOTS = [
+  { name: 'New York, USA', lat: 40.7128, lon: -74.006 },
+  { name: 'Los Angeles, USA', lat: 34.0522, lon: -118.2437 },
+  { name: 'Mexico City, Mexico', lat: 19.4326, lon: -99.1332 },
+  { name: 'Sao Paulo, Brazil', lat: -23.5505, lon: -46.6333 },
+  { name: 'Buenos Aires, Argentina', lat: -34.6037, lon: -58.3816 },
+  { name: 'London, UK', lat: 51.5074, lon: -0.1278 },
+  { name: 'Paris, France', lat: 48.8566, lon: 2.3522 },
+  { name: 'Berlin, Germany', lat: 52.52, lon: 13.405 },
+  { name: 'Cairo, Egypt', lat: 30.0444, lon: 31.2357 },
+  { name: 'Lagos, Nigeria', lat: 6.5244, lon: 3.3792 },
+  { name: 'Nairobi, Kenya', lat: -1.2921, lon: 36.8219 },
+  { name: 'Moscow, Russia', lat: 55.7558, lon: 37.6173 },
+  { name: 'Dubai, UAE', lat: 25.2048, lon: 55.2708 },
+  { name: 'Mumbai, India', lat: 19.076, lon: 72.8777 },
+  { name: 'Delhi, India', lat: 28.6139, lon: 77.209 },
+  { name: 'Bangkok, Thailand', lat: 13.7563, lon: 100.5018 },
+  { name: 'Singapore', lat: 1.3521, lon: 103.8198 },
+  { name: 'Jakarta, Indonesia', lat: -6.2088, lon: 106.8456 },
+  { name: 'Beijing, China', lat: 39.9042, lon: 116.4074 },
+  { name: 'Shanghai, China', lat: 31.2304, lon: 121.4737 },
+  { name: 'Seoul, South Korea', lat: 37.5665, lon: 126.978 },
+  { name: 'Tokyo, Japan', lat: 35.6762, lon: 139.6503 },
+  { name: 'Sydney, Australia', lat: -33.8688, lon: 151.2093 },
+  { name: 'Melbourne, Australia', lat: -37.8136, lon: 144.9631 },
+  { name: 'Auckland, New Zealand', lat: -36.8509, lon: 174.7645 },
+];
+
 const REMOTE_TEXTURES = {
   day: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r162/examples/textures/planets/earth_atmos_2048.jpg',
   night: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r162/examples/textures/planets/earth_lights_2048.png',
@@ -199,6 +227,43 @@ function makeMagmaMaterial(THREE) {
   });
 
   return material;
+}
+
+
+function greatCircleDistance(lat1, lon1, lat2, lon2) {
+  const toRad = Math.PI / 180;
+  const p1 = lat1 * toRad;
+  const p2 = lat2 * toRad;
+  const dLat = (lat2 - lat1) * toRad;
+  const dLon = (lon2 - lon1) * toRad;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dLon / 2) ** 2;
+  return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function getLocationLabelFromPoint(localPoint) {
+  const p = localPoint.clone().normalize();
+  const lat = Math.asin(p.y) * (180 / Math.PI);
+  const lon = Math.atan2(p.z, p.x) * (180 / Math.PI);
+
+  let nearest = null;
+  let minDist = Infinity;
+  for (const city of CITY_HOTSPOTS) {
+    const d = greatCircleDistance(lat, lon, city.lat, city.lon);
+    if (d < minDist) {
+      minDist = d;
+      nearest = city;
+    }
+  }
+
+  if (nearest && minDist < 0.42) {
+    return nearest.name;
+  }
+
+  if (Math.abs(lat) > 66) return lat > 0 ? 'Arctic Region' : 'Antarctic Region';
+  if (lon > 100 || lon < -70) return 'Pacific Ocean';
+  if (lon > -70 && lon < 20) return 'Atlantic Ocean';
+  if (lon >= 20 && lon <= 100) return 'Eurasia / Africa';
+  return 'Open Ocean';
 }
 
 function createOrbitalBelt(THREE) {
@@ -581,6 +646,9 @@ export async function createEarthSystem(THREE, scene, sun) {
     spawnBeacon,
     triggerPlayfulMode,
     triggerMeteorShower,
+    getLocationLabel(point) {
+      return getLocationLabelFromPoint(group.worldToLocal(point.clone()));
+    },
     labelText() {
       return LABELS[Math.floor(Math.random() * LABELS.length)];
     },

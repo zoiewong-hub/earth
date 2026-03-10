@@ -164,7 +164,8 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
     earthSystem.triggerOrbitalBelt?.();
     earthSystem.spawnImpact?.(hit.point);
     if (event.shiftKey) earthSystem.spawnBeacon?.(hit.point);
-    showLabel(hit.point, event.shiftKey ? "Beacon Placed" : earthSystem.labelText());
+    const mappedLabel = earthSystem.getLocationLabel?.(hit.point) || earthSystem.labelText();
+    showLabel(hit.point, event.shiftKey ? "Beacon Placed" : mappedLabel);
 
     const now = performance.now();
     state.clickSeries = state.clickSeries.filter((t) => now - t < 1600);
