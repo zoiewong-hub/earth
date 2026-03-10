@@ -57,6 +57,16 @@ function setupNav() {
       return;
     }
 
+    if (action === 'city') {
+      earthSystem.triggerCityPulse?.();
+      return;
+    }
+
+    if (action === 'scan') {
+      earthSystem.triggerScanSweep?.();
+      return;
+    }
+
     if (action === 'reset') {
       autoMode = false;
       toggleActiveButton('auto', false);

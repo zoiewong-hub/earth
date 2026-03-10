@@ -197,6 +197,16 @@ export function createInteractionSystem({ THREE, camera, renderer, setBloomStren
       earthSystem.triggerMeteorShower?.();
       return;
     }
+    if (event.key.toLowerCase() === 'c') {
+      markActive();
+      earthSystem.triggerCityPulse?.();
+      return;
+    }
+    if (event.key.toLowerCase() === 'g') {
+      markActive();
+      earthSystem.triggerScanSweep?.();
+      return;
+    }
     if (event.key.toLowerCase() === 'r') {
       markActive();
       gsap.to(camera.position, { x: 0, y: 0.2, z: 5.7, duration: 0.9, ease: 'power2.inOut' });

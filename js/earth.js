@@ -266,6 +266,17 @@ function getLocationLabelFromPoint(localPoint) {
   return 'Open Ocean';
 }
 
+
+function latLonToVector3(lat, lon, radius = 1.36, THREERef = null) {
+  const phi = (90 - lat) * (Math.PI / 180);
+  const theta = (lon + 180) * (Math.PI / 180);
+  const x = -radius * Math.sin(phi) * Math.cos(theta);
+  const z = radius * Math.sin(phi) * Math.sin(theta);
+  const y = radius * Math.cos(phi);
+  const V = THREERef?.Vector3 || (typeof THREE !== "undefined" ? THREE.Vector3 : null);
+  return new V(x, y, z);
+}
+
 function createOrbitalBelt(THREE) {
   const coreGeometry = new THREE.BufferGeometry();
   const corePoints = [];
@@ -447,16 +458,28 @@ export async function createEarthSystem(THREE, scene, sun) {
   const meteors = [];
 
   function triggerMeteorShower() {
-    for (let i = 0; i < 22; i += 1) {
-      const meteor = new THREE.Mesh(
-        new THREE.SphereGeometry(0.01 + Math.random() * 0.012, 8, 8),
-        new THREE.MeshBasicMaterial({ color: 0x9ed4ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })
+    for (let i = 0; i < 26; i += 1) {
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.008 + Math.random() * 0.01, 10, 10),
+        new THREE.MeshBasicMaterial({ color: 0xfff4de, transparent: true, opacity: 0.96, blending: THREE.AdditiveBlending, depthWrite: false })
       );
-      const start = new THREE.Vector3((Math.random() - 0.5) * 5.2, (Math.random() - 0.5) * 3.2, -2.2 - Math.random() * 1.2);
-      const velocity = new THREE.Vector3(0.02 + Math.random() * 0.045, (Math.random() - 0.5) * 0.012, 0.026 + Math.random() * 0.045);
-      meteor.position.copy(start);
-      meteorSystem.add(meteor);
-      meteors.push({ mesh: meteor, velocity, life: 1.2 + Math.random() * 0.8 });
+
+      const tail = [];
+      for (let t = 0; t < 7; t += 1) {
+        const seg = new THREE.Mesh(
+          new THREE.SphereGeometry(0.004 + (6 - t) * 0.0009, 8, 8),
+          new THREE.MeshBasicMaterial({ color: 0x98d8ff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false })
+        );
+        meteorSystem.add(seg);
+        tail.push(seg);
+      }
+
+      const start = new THREE.Vector3((Math.random() - 0.5) * 8.8, 1.5 + Math.random() * 3.9, -4.6 - Math.random() * 3.1);
+      const velocity = new THREE.Vector3(0.026 + Math.random() * 0.052, -0.012 - Math.random() * 0.02, 0.028 + Math.random() * 0.048);
+
+      head.position.copy(start);
+      meteorSystem.add(head);
+      meteors.push({ head, tail, velocity, life: 1.5 + Math.random() * 1.0, tailLength: 0.3 + Math.random() * 0.32 });
     }
   }
 
@@ -516,6 +539,68 @@ export async function createEarthSystem(THREE, scene, sun) {
       .to(spark.material, { opacity: 0, duration: 0.6, ease: 'sine.in', delay: 0.15 }, 0);
   }
 
+
+  const scanSweepMaterial = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      progress: { value: -1.2 },
+      width: { value: 0.16 },
+      intensity: { value: 0.0 },
+      time: { value: 0.0 },
+      axis: { value: new THREE.Vector3(0.2, 0.9, 0.3).normalize() },
+    },
+    vertexShader: `
+      varying vec3 vNormalW;
+      void main() {
+        vNormalW = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float progress;
+      uniform float width;
+      uniform float intensity;
+      uniform float time;
+      uniform vec3 axis;
+      varying vec3 vNormalW;
+      void main() {
+        float d = dot(normalize(vNormalW), normalize(axis));
+        float band = smoothstep(width, 0.0, abs(d - progress));
+        float noise = sin((vNormalW.x + time * 0.8) * 18.0) * 0.15 + cos((vNormalW.z - time * 0.7) * 14.0) * 0.12;
+        float nBand = clamp(band + noise * band, 0.0, 1.0);
+        vec3 c = mix(vec3(0.35, 0.72, 0.95), vec3(0.55, 1.0, 0.78), 0.5 + 0.5 * vNormalW.y);
+        gl_FragColor = vec4(c, nBand * intensity * 0.52);
+      }
+    `,
+    side: THREE.DoubleSide,
+  });
+  const scanRing = new THREE.Mesh(new THREE.SphereGeometry(1.395, 72, 72), scanSweepMaterial);
+
+  function triggerScanSweep() {
+    gsap.killTweensOf(scanSweepMaterial.uniforms.progress);
+    gsap.killTweensOf(scanSweepMaterial.uniforms.intensity);
+    scanSweepMaterial.uniforms.progress.value = -1.15;
+    scanSweepMaterial.uniforms.intensity.value = 0.0;
+
+    gsap.timeline()
+      .to(scanSweepMaterial.uniforms.intensity, { value: 1.0, duration: 0.35, ease: 'sine.out' }, 0)
+      .to(scanSweepMaterial.uniforms.progress, { value: 1.15, duration: 2.3, ease: 'power1.inOut' }, 0)
+      .to(scanSweepMaterial.uniforms.intensity, { value: 0.0, duration: 0.9, ease: 'sine.in' }, 1.4);
+
+    gsap.to(atmosphere.material.uniforms.intensity, { value: 1.18, duration: 0.7, yoyo: true, repeat: 1, ease: 'sine.inOut' });
+  }
+
+  function triggerCityPulse() {
+    const picks = [...CITY_HOTSPOTS].sort(() => Math.random() - 0.5).slice(0, 8);
+    for (const city of picks) {
+      const point = latLonToVector3(city.lat, city.lon, 1.36, THREE);
+      spawnBeacon(group.localToWorld(point));
+    }
+    gsap.to(earth.material, { emissiveIntensity: 0.42, duration: 0.6, yoyo: true, repeat: 1, ease: 'sine.inOut' });
+  }
+
   function triggerPlayfulMode() {
     gsap.to(group.rotation, { y: group.rotation.y + 0.55, duration: 0.9, ease: 'power2.out' });
     gsap.to(earth.material, { emissiveIntensity: 0.52, duration: 0.6, ease: 'sine.out', yoyo: true, repeat: 1 });
@@ -523,7 +608,7 @@ export async function createEarthSystem(THREE, scene, sun) {
     triggerOrbitalBelt();
   }
 
-  group.add(earth, clouds, atmosphere, outerAtmosphere, orbitalBelt, orbitalHaze, leftShell, rightShell, magmaCore, pulseRing, interactionEffects, meteorSystem);
+  group.add(earth, clouds, atmosphere, outerAtmosphere, orbitalBelt, orbitalHaze, leftShell, rightShell, magmaCore, pulseRing, interactionEffects, meteorSystem, scanRing);
 
   function intro(camera, ambient, hemi) {
     const tl = gsap.timeline({ defaults: { ease: 'power2.inOut' } });
@@ -624,15 +709,32 @@ export async function createEarthSystem(THREE, scene, sun) {
       orbitalBelt.material.opacity += (0.14 - orbitalBelt.material.opacity) * 0.015;
       orbitalHaze.material.opacity += (0.026 - orbitalHaze.material.opacity) * 0.02;
 
+      scanSweepMaterial.uniforms.time.value = time;
+
       for (let i = meteors.length - 1; i >= 0; i -= 1) {
         const m = meteors[i];
-        m.mesh.position.add(m.velocity);
+        m.head.position.add(m.velocity);
         m.life -= 0.016;
-        m.mesh.material.opacity = Math.max(0, m.life * 0.7);
+
+        const dir = m.velocity.clone().normalize();
+        for (let t = 0; t < m.tail.length; t += 1) {
+          const seg = m.tail[t];
+          const ratio = (t + 1) / m.tail.length;
+          seg.position.copy(m.head.position).sub(dir.clone().multiplyScalar(m.tailLength * ratio));
+          seg.material.opacity = Math.max(0, m.life * (0.34 - ratio * 0.22));
+        }
+
+        m.head.material.opacity = Math.max(0, m.life * 0.72);
+
         if (m.life <= 0) {
-          meteorSystem.remove(m.mesh);
-          m.mesh.geometry.dispose();
-          m.mesh.material.dispose();
+          meteorSystem.remove(m.head);
+          m.head.geometry.dispose();
+          m.head.material.dispose();
+          for (const seg of m.tail) {
+            meteorSystem.remove(seg);
+            seg.geometry.dispose();
+            seg.material.dispose();
+          }
           meteors.splice(i, 1);
         }
       }
@@ -646,6 +748,8 @@ export async function createEarthSystem(THREE, scene, sun) {
     spawnBeacon,
     triggerPlayfulMode,
     triggerMeteorShower,
+    triggerScanSweep,
+    triggerCityPulse,
     getLocationLabel(point) {
       return getLocationLabelFromPoint(group.worldToLocal(point.clone()));
     },
