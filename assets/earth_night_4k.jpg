@@ -1,0 +1,1 @@
+Placeholder for 4K night texture. Runtime fallback in js/earth.js generates a high-resolution canvas texture when this file is unavailable.
