@@ -1,7 +1,7 @@
 import { gsap } from '../vendor/gsap.js';
-import { createSceneSystem } from './scene.js';
-import { createEarthSystem } from './earth.js';
-import { createInteractionSystem } from './interaction.js';
+import { createSceneSystem } from './scene.js?v=20261105';
+import { createEarthSystem } from './earth.js?v=20261105';
+import { createInteractionSystem } from './interaction.js?v=20261105';
 
 const container = document.getElementById('app');
 const sceneSystem = createSceneSystem(container);
