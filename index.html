@@ -5,9 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cinematic Earth</title>
     <link rel="stylesheet" href="./style.css" />
+    <link rel="icon" href="data:," />
   </head>
   <body>
     <div id="app"></div>
+    <div id="load-status" class="load-status" role="status">正在加载地球…</div>
+    <noscript>请启用浏览器的 JavaScript 以查看地球模型。</noscript>
     <div id="label" class="floating-label" hidden></div>
 
     <nav class="bottom-nav" aria-label="Earth interactions">
@@ -20,6 +23,6 @@
       <button type="button" class="nav-btn" data-action="reset">重置视角</button>
     </nav>
 
-    <script type="module" src="./js/main.js"></script>
+    <script type="module" src="./js/boot.js"></script>
   </body>
 </html>

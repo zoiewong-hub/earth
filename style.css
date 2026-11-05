@@ -45,6 +45,19 @@ canvas {
   transition: opacity 0.35s ease;
 }
 
+.load-status {
+  position: fixed;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9;
+  width: min(85vw, 420px);
+  color: #dbe8fa;
+  text-align: center;
+  line-height: 1.7;
+  font-size: 14px;
+}
+
 .floating-label.show {
   opacity: 1;
 }
