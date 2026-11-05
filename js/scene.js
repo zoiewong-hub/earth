@@ -1,8 +1,8 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.162.0/+esm';
-import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/postprocessing/EffectComposer.js/+esm';
-import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/postprocessing/RenderPass.js/+esm';
-import { UnrealBloomPass } from 'https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/postprocessing/UnrealBloomPass.js/+esm';
-import { BokehPass } from 'https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/postprocessing/BokehPass.js/+esm';
+import * as THREE from '../vendor/three.js';
+import { EffectComposer } from '../vendor/EffectComposer.js';
+import { RenderPass } from '../vendor/RenderPass.js';
+import { UnrealBloomPass } from '../vendor/UnrealBloomPass.js';
+import { BokehPass } from '../vendor/BokehPass.js';
 
 
 function createLightSpriteTexture(THREERef, inner, outer) {

@@ -1,7 +1,7 @@
-import { gsap } from 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm';
-import { createSceneSystem } from './scene.js';
-import { createEarthSystem } from './earth.js';
-import { createInteractionSystem } from './interaction.js';
+import { gsap } from '../vendor/gsap.js';
+import { createSceneSystem } from './scene.js?v=20261105';
+import { createEarthSystem } from './earth.js?v=20261105';
+import { createInteractionSystem } from './interaction.js?v=20261105';
 
 const container = document.getElementById('app');
 const sceneSystem = createSceneSystem(container);
@@ -101,6 +101,10 @@ function animate() {
 
   interaction.update();
   sceneSystem.composer.render();
+  if (document.documentElement.dataset.earthReady !== 'true') {
+    document.documentElement.dataset.earthReady = 'true';
+    document.getElementById('load-status')?.remove();
+  }
 }
 
 animate();

@@ -1,4 +1,4 @@
-import { gsap } from 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm';
+import { gsap } from '../vendor/gsap.js';
 
 export function createInteractionSystem({ THREE, camera, renderer, setBloomStrength, setFocus, earthSystem, onAutoMode }) {
   const raycaster = new THREE.Raycaster();

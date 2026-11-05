@@ -1,4 +1,4 @@
-import { gsap } from 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm';
+import { gsap } from '../vendor/gsap.js';
 
 const LABELS = ['Pacific Rim', 'Atlantic Glow', 'Aurora Band', 'Equatorial Stream', 'Polar Crown'];
 
@@ -29,14 +29,6 @@ const CITY_HOTSPOTS = [
   { name: 'Melbourne, Australia', lat: -37.8136, lon: 144.9631 },
   { name: 'Auckland, New Zealand', lat: -36.8509, lon: 174.7645 },
 ];
-
-const REMOTE_TEXTURES = {
-  day: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r162/examples/textures/planets/earth_atmos_2048.jpg',
-  night: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r162/examples/textures/planets/earth_lights_2048.png',
-  normal: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r162/examples/textures/planets/earth_normal_2048.jpg',
-  specular: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r162/examples/textures/planets/earth_specular_2048.jpg',
-  clouds: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r162/examples/textures/planets/earth_clouds_1024.png',
-};
 
 function makeCanvas(width = 2048, height = 1024) {
   const canvas = document.createElement('canvas');
@@ -114,31 +106,32 @@ function buildFallback(type) {
 
 function loadImageTexture(loader, url, type, THREE) {
   return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`load timed out: ${url}`)), 8000);
     loader.load(
       url,
       (texture) => {
+        clearTimeout(timer);
         texture.colorSpace = type === 'normal' || type === 'specular' ? THREE.NoColorSpace : THREE.SRGBColorSpace;
         texture.anisotropy = 8;
         resolve(texture);
       },
       undefined,
-      () => reject(new Error(`load failed: ${url}`))
+      () => {
+        clearTimeout(timer);
+        reject(new Error(`load failed: ${url}`));
+      }
     );
   });
 }
 
-async function loadTexture(loader, localPath, remoteUrl, type, THREE) {
+async function loadTexture(loader, localPath, type, THREE) {
   try {
     return await loadImageTexture(loader, localPath, type, THREE);
   } catch {
-    try {
-      return await loadImageTexture(loader, remoteUrl, type, THREE);
-    } catch {
-      const texture = new THREE.CanvasTexture(buildFallback(type));
-      texture.colorSpace = type === 'normal' || type === 'specular' ? THREE.NoColorSpace : THREE.SRGBColorSpace;
-      texture.anisotropy = 8;
-      return texture;
-    }
+    const texture = new THREE.CanvasTexture(buildFallback(type));
+    texture.colorSpace = type === 'normal' || type === 'specular' ? THREE.NoColorSpace : THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
+    return texture;
   }
 }
 
@@ -389,11 +382,11 @@ export async function createEarthSystem(THREE, scene, sun) {
 
   const loader = new THREE.TextureLoader();
   const [dayMap, nightMap, normalMap, specularMap, cloudMap] = await Promise.all([
-    loadTexture(loader, './assets/earth_day_4k.jpg', REMOTE_TEXTURES.day, 'day', THREE),
-    loadTexture(loader, './assets/earth_night_4k.jpg', REMOTE_TEXTURES.night, 'night', THREE),
-    loadTexture(loader, './assets/earth_normal_4k.jpg', REMOTE_TEXTURES.normal, 'normal', THREE),
-    loadTexture(loader, './assets/earth_specular_4k.jpg', REMOTE_TEXTURES.specular, 'specular', THREE),
-    loadTexture(loader, './assets/earth_clouds_4k.png', REMOTE_TEXTURES.clouds, 'clouds', THREE),
+    loadTexture(loader, './assets/earth_day.jpg', 'day', THREE),
+    loadTexture(loader, './assets/earth_night.jpg', 'night', THREE),
+    loadTexture(loader, './assets/earth_normal.jpg', 'normal', THREE),
+    loadTexture(loader, './assets/earth_specular.jpg', 'specular', THREE),
+    loadTexture(loader, './assets/earth_clouds.png', 'clouds', THREE),
   ]);
 
   const earthMat = new THREE.MeshStandardMaterial({
